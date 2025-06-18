@@ -13,7 +13,10 @@ import (
 	"golang.org/x/text/width"
 )
 
-const tmplOrder = "${o}"
+const (
+	tmplOrder  = "${o}"
+	tmplParent = "${p}"
+)
 
 type sortedEntry []os.DirEntry
 
@@ -197,11 +200,14 @@ func secondary(absdir, expr, template string, dryrun bool) error {
 					tmpl += orderstr
 				}
 			}
+			if strings.Contains(tmpl, tmplParent) {
+				tmpl = strings.Replace(tmpl, tmplParent, dirEntry.Name(), -1)
+			}
+
 			newname := regexp.MustCompile(expr).ReplaceAllString(name, tmpl)
 			newname += ext
 
 			oldname = filepath.Join(dirEntry.Name(), oldname)
-			newname = dirEntry.Name() + newname
 			fmt.Printf(format, oldname, strings.Repeat(" ", pad), newname)
 			number++
 			if dryrun {
@@ -251,10 +257,10 @@ var (
 	mode = flag.Int("mode", 0, "(0) File & Directory in local directory\n"+
 		"(1) Directory in local directory\n"+
 		"(2) File in local directory\n"+
-		"(3) Rename File in secondary directory to local directory")
+		"(3) Rename File in secondary directory to local directory, ${p} is parent dir")
 	dir      = flag.String("dir", ".", "Directory to walk")
 	expr     = flag.String("expr", "^(.*)$", "Regular expression to extract name")
-	template = flag.String("template", "${1}", "Rename to template")
+	template = flag.String("template", "${p}${1}", "Rename to template, ignore ${p} even if mode=3")
 	order    = flag.Int("order", 0,
 		fmt.Sprintf("Order, %s is place in template\n", tmplOrder)+
 			"Default order is like ${template}${order}${extension}")
@@ -273,6 +279,10 @@ func main() {
 	}()
 
 	flag.Parse()
+
+	if *mode != 3 && strings.Contains(*template, tmplParent) {
+		*template = strings.Replace(*template, tmplParent, "", -1)
+	}
 
 	if err := walk(*mode, *dir, *expr, *template, true); err != nil {
 		panic(err)
